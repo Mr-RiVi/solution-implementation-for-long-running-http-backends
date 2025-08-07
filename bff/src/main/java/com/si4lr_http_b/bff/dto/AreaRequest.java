@@ -8,7 +8,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class AreaRequest {
-    private String taskId;
     private Integer height;
     private Integer width;
 }

@@ -1,36 +1,60 @@
 package com.si4lr_http_b.bff.config;
 
 import org.springframework.amqp.core.*;
+import org.springframework.amqp.rabbit.config.RetryInterceptorBuilder;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.rabbit.retry.RejectAndDontRequeueRecoverer;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
+import org.springframework.retry.interceptor.RetryOperationsInterceptor;
 
 @Configuration
 public class MessagingConfig {
-    public static final String QUEUE = "long_running_task_queue";
-    public static final String EXCHANGE = "long_running_task_exchange";
-    public static final String ROUTING_KEY = "long_running_task_routingkey";
+    public static final String QUEUE = "long.running.task.queue"; // Main queue name
+    public static final String DLQ = "long.running.task.queue.dlq"; // Dead Letter Queue name
+    public static final String EXCHANGE = "long.running.task.exchange"; // Main Exchange name
+    public static final String DL_EXCHANGE = "long.running.task.dl.exchange"; // Main Exchange name
+    public static final String ROUTING_KEY = "long.running.task.routingKey"; // Routing key for main queue
+    public static final String DLQ_ROUTING_KEY = "long.running.task.routingKey.dlq"; // Routing key for DLQ
 
-    //Creating a queue.
+    //Creating the queues.
     @Bean
-    public Queue queue(){
-        return new Queue(QUEUE);
+    public Queue taskQueue() {
+        return QueueBuilder.durable(QUEUE)
+                .withArgument("x-dead-letter-exchange", DL_EXCHANGE)
+                .withArgument("x-dead-letter-routing-key", DLQ_ROUTING_KEY)
+                .build();
     }
 
-    //Creating the Exchange.
+    @Bean
+    public Queue deadLetterQueue() {
+        return QueueBuilder.durable(DLQ).build();
+    }
+
+    //Creating the Exchanges.
     @Bean
     public TopicExchange exchange(){
         return new TopicExchange(EXCHANGE);
     }
 
-    //Binding queue and exchange using routing key.
     @Bean
-    public Binding binding(Queue queue, TopicExchange exchange){
-        return BindingBuilder.bind(queue).to(exchange).with(ROUTING_KEY);
+    DirectExchange deadLetterExchange() {
+        return new DirectExchange(DL_EXCHANGE);
+    }
+
+    // Binds the queue to the exchange using a routing key.
+    @Bean
+    public Binding taskQueueBinding() {
+        return BindingBuilder.bind(taskQueue()).to(exchange()).with(ROUTING_KEY);
+    }
+
+    @Bean
+    public Binding deadLetterQueueBinding() {
+        return BindingBuilder.bind(deadLetterQueue()).to(deadLetterExchange()).with(DLQ_ROUTING_KEY);
     }
 
     /**
@@ -48,7 +72,7 @@ public class MessagingConfig {
      * a high-level API(provides methods for sending and receiving messages from RabbitMQ).
      */
     @Bean
-    public AmqpTemplate template(ConnectionFactory connectionFactory){
+    public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory){
         final RabbitTemplate rabbitTemplate = new RabbitTemplate(connectionFactory);
         rabbitTemplate.setMessageConverter(converter());
         return rabbitTemplate;
@@ -57,6 +81,17 @@ public class MessagingConfig {
     @Bean
     public SimpleRabbitListenerContainerFactory rabbitListenerContainerFactory(ConnectionFactory connectionFactory) {
         SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
+
+        // Enable retry
+        RetryOperationsInterceptor retryInterceptor = RetryInterceptorBuilder
+                .stateless()
+                .maxAttempts(3)
+                .backOffOptions(1000, 2.0, 10000)
+                .recoverer(new RejectAndDontRequeueRecoverer()) // Send to DLQ
+                .build();
+        factory.setAdviceChain(retryInterceptor); // THIS is what makes retry work
+        factory.setDefaultRequeueRejected(false); // Prevent infinite retry loops
+
         factory.setMessageConverter(converter());
         factory.setConnectionFactory(connectionFactory);
         factory.setPrefetchCount(1);  // Prefetch count is set to 1 to ensure only 1 message is consumed at a time

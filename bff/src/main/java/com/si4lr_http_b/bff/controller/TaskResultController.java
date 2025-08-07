@@ -4,6 +4,7 @@ import com.si4lr_http_b.bff.dto.TaskResultResponse;
 import com.si4lr_http_b.bff.model.Area;
 import com.si4lr_http_b.bff.repository.AreaRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,6 +17,7 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api")
 @RequiredArgsConstructor
+@Slf4j
 public class TaskResultController {
     private final AreaRepository areaRepository;
 
