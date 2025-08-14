@@ -1,0 +1,22 @@
+services:
+  broker:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq
+    ports:
+      - "5672:5672" # Standard AMQP port for client connections
+      - "15672:15672" # Management UI port
+    environment:
+#      - SPRING_PROFILES_ACTIVE=docker
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    volumes:
+      - ./docker/rabbitmq_data:/var/lib/rabbitmq
+    restart: always # Ensures the container restarts automatically
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: redis-cache
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./docker/redis-data:/data

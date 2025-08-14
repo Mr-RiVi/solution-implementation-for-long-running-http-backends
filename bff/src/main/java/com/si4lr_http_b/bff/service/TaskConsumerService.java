@@ -2,7 +2,6 @@ package com.si4lr_http_b.bff.service;
 
 import com.si4lr_http_b.bff.config.MessagingConfig;
 import com.si4lr_http_b.bff.controller.WebSocketController;
-import com.si4lr_http_b.bff.dto.AreaRequest;
 import com.si4lr_http_b.bff.event.TaskPlacedEvent;
 import com.si4lr_http_b.bff.model.Area;
 import com.si4lr_http_b.bff.repository.AreaRepository;
@@ -77,7 +76,7 @@ public class TaskConsumerService {
         areaRepository.save(cachedArea);
 
         // Send WebSocket update
-        webSocketController.sendUpdate(taskId);
+        webSocketController.sendUpdate(taskId, "COMPLETED");
     }
 
     /**
@@ -109,7 +108,7 @@ public class TaskConsumerService {
         System.out.println("Task " + taskId + " completed. Result: " + result);
 
         // Send WebSocket update
-        webSocketController.sendUpdate(taskId);
+        webSocketController.sendUpdate(taskId, "COMPLETED");
     }
 
     /**

@@ -18,10 +18,10 @@ public class WebSocketController {
         return "Subscribed to real-time updates!";
     }
 
-    public void sendUpdate(String taskId) {
+    public void sendUpdate(String taskId, String status) {
         Map<String, Object> message = new HashMap<>();
         message.put("taskId", taskId);
-        message.put("status", "COMPLETED");
+        message.put("status", status);
 
         messagingTemplate.convertAndSend("/topic/updates", message);
     }
