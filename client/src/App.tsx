@@ -69,6 +69,7 @@ function App() {
   return (
     <div>
       <h2>WebSocket Messages</h2>
+      <h2>Connection Status : {connectionStatus}</h2>
       {messages.length > 0 ? (
         <ul>
           {messages.map((msg, index) => (
