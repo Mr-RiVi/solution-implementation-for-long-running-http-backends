@@ -46,16 +46,8 @@ public class TaskConsumerService {
             // Process the task if not cached
             processTask(taskId, height, width, cacheKey);
 
-        } catch (Exception e) {
-            System.err.println("Task " + taskId + " failed: " + e.getMessage());
-
-            // Save/update FAILED status only once
-            Area area = areaRepository.findByTaskId(taskId)
-                    .orElseGet(() -> createAreaEntity(taskId, height, width, 0, "FAILED"));
-            area.setStatus("FAILED");
-            areaRepository.save(area);
-
-            // Rethrow to trigger retry & DLQ if retries exhausted
+        } catch (RuntimeException e) {
+            // Rethrow to trigger retry & DLQ when retries exhausted
             throw new RuntimeException("Processing failed for task " + taskId, e);
         }
     }
@@ -79,6 +71,22 @@ public class TaskConsumerService {
         webSocketController.sendUpdate(taskId, "COMPLETED");
     }
 
+    @RabbitListener(queues = MessagingConfig.DLQ)
+    public void handleDlqMessage(TaskPlacedEvent taskPlacedEvent) {
+        String taskId = taskPlacedEvent.getTaskId();
+
+        // Update status in DB as FAILED
+        Area area = areaRepository.findByTaskId(taskId)
+                .orElseGet(() -> createAreaEntity(taskId, taskPlacedEvent.getHeight(), taskPlacedEvent.getWidth(), 0, "FAILED"));
+        area.setStatus("FAILED");
+        areaRepository.save(area);
+
+        // Send final WebSocket update to client
+        webSocketController.sendUpdate(taskId, "FAILED");
+
+        System.err.println("Task " + taskId + " moved to DLQ after max retries.");
+    }
+
     /**
      * Processes the task if the result is not found in the cache.
      *
@@ -87,7 +95,7 @@ public class TaskConsumerService {
      * @param width    The width parameter.
      * @param cacheKey The cache key.
      */
-    private void processTask(String taskId, int height, int width, String cacheKey) throws Exception {
+    private void processTask(String taskId, int height, int width, String cacheKey) {
         // Task validator
         validateTask(height, width);
 
@@ -117,11 +125,15 @@ public class TaskConsumerService {
      * @param height The height parameter.
      * @param width  The width parameter.
      * @return The calculated area.
-     * @throws InterruptedException If the thread is interrupted during the delay.
      */
-    private int calculateArea(int height, int width) throws InterruptedException {
+    private int calculateArea(int height, int width) {
         // Simulate a long-running calculation (20 seconds)
-        Thread.sleep(20000); // 20-second delay
+        try {
+            Thread.sleep(20000); // 20-second delay
+        }
+        catch (InterruptedException ie) {
+            System.out.println("Thread was interrupted while sleeping.");
+        }
 
         // Perform the actual calculation
         return height * width;
